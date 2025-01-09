@@ -1,0 +1,19 @@
+trigger CreateTechnicianOnUserCreation on User (after insert, after update) {
+    // Collect user IDs that need to create or update Technician records
+    Set<Id> technicianUserIds = new Set<Id>();
+
+    // Fetch the Profile ID for "Technician" to avoid multiple queries
+    Id technicianProfileId = [SELECT Id FROM Profile WHERE Name = 'Technician' LIMIT 1].Id;
+
+    // Check if the user has the Technician profile
+    for (User user : Trigger.new) {
+        if (user.ProfileId == technicianProfileId) {
+            technicianUserIds.add(user.Id);
+        }
+    }
+
+    // If there are users to process, call the queueable class
+    if (!technicianUserIds.isEmpty()) {
+        System.enqueueJob(new CreateOrUpdateTechnicianQueueable(technicianUserIds));
+    }
+}

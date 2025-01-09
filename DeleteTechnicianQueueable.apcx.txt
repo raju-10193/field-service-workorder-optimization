@@ -1,0 +1,34 @@
+// Queueable Class: DeleteTechnicianQueueable
+public class DeleteTechnicianQueueable implements Queueable {
+    private Set<Id> userIds;
+
+    // Constructor to pass user IDs
+    public DeleteTechnicianQueueable(Set<Id> userIds) {
+        this.userIds = userIds;
+    }
+
+    public void execute(QueueableContext context) {
+        if (userIds == null || userIds.isEmpty()) {
+            System.debug('No User IDs provided for deletion. Exiting Queueable execution.');
+            return;
+        }
+
+        try {
+            // Query Technician records associated with the User IDs
+            List<Technician__c> techniciansToDelete = [
+                SELECT Id
+                FROM Technician__c
+                WHERE Name IN :userIds
+            ];
+
+            // Delete Technician records if found
+            if (!techniciansToDelete.isEmpty()) {
+                delete techniciansToDelete;
+                System.debug('Technician records successfully deleted.');
+            }
+        } catch (Exception e) {
+            System.debug('Error during Technician deletion: ' + e.getMessage());
+            throw e;
+        }
+    }
+}

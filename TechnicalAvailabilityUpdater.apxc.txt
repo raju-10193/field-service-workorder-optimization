@@ -1,0 +1,61 @@
+public class TechnicianAvailabilityUpdater {
+    public static void updateTechnicianAvailability(List<WorkOrder__c> newWorkOrders) {
+        List<Technician__c> techniciansToUpdate = new List<Technician__c>();
+        List<WorkOrder__c> workOrdersToUpdate = new List<WorkOrder__c>();
+        List<Assignment__c> assignmentsToCreate = new List<Assignment__c>();
+
+        for (WorkOrder__c newWorkOrder : newWorkOrders) {
+            if (newWorkOrder.Status__c == 'New') {
+                System.debug('Processing WorkOrder ID: ' + newWorkOrder.Id);
+
+                List<Technician__c> availableTechnicians = [
+                    SELECT Id, Availibility__c, Skills__c, Location__c 
+                    FROM Technician__c
+                    WHERE Availibility__c = 'Available'
+                    AND Skills__c = :newWorkOrder.Service_Type__c
+                    AND Location__c = :newWorkOrder.Location__c
+                    LIMIT 1
+                ];
+
+                System.debug('Available Technicians: ' + availableTechnicians);
+
+                if (!availableTechnicians.isEmpty()) {
+                    Technician__c assignedTechnician = availableTechnicians[0];
+
+                    Assignment__c newAssignment = new Assignment__c(
+                        Technician_ID__c = assignedTechnician.Id,
+                        WorkOrder_ID__c = newWorkOrder.Id
+                    );
+                    assignmentsToCreate.add(newAssignment);
+
+                    assignedTechnician.Availibility__c = 'Not Available';
+                    techniciansToUpdate.add(assignedTechnician);
+
+                    newWorkOrder.Status__c = 'In Progress';
+                    workOrdersToUpdate.add(newWorkOrder);
+
+                    System.debug('Technician ' + assignedTechnician.Id + ' assigned to WorkOrder ' + newWorkOrder.Id);
+                } else {
+                    System.debug('No available technician found for WorkOrder ID: ' + newWorkOrder.Id);
+                }
+            }
+        }
+
+        try {
+            if (!techniciansToUpdate.isEmpty()) {
+                update techniciansToUpdate;
+                System.debug('Technicians updated: ' + techniciansToUpdate);
+            }
+            if (!workOrdersToUpdate.isEmpty()) {
+                update workOrdersToUpdate;
+                System.debug('WorkOrders updated: ' + workOrdersToUpdate);
+            }
+            if (!assignmentsToCreate.isEmpty()) {
+                insert assignmentsToCreate;
+                System.debug('Assignments created: ' + assignmentsToCreate);
+            }
+        } catch (Exception e) {
+            System.debug('DML Error: ' + e.getMessage());
+        }
+    }
+}

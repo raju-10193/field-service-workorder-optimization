@@ -1,0 +1,47 @@
+public class CompletionMail {
+    @future
+    public static void sendEmailInFuture(List<String> emailAddresses, List<String> emailSubjects, List<String> emailBodies) {
+        List<Messaging.SingleEmailMessage> emails = new List<Messaging.SingleEmailMessage>();
+
+        for (Integer i = 0; i < emailAddresses.size(); i++) {
+            Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
+            mail.setToAddresses(new List<String>{emailAddresses[i]});
+            mail.setSubject(emailSubjects[i]);
+            mail.setHtmlBody(emailBodies[i]); // Corrected to use setHtmlBody
+            emails.add(mail);
+        }
+
+        try {
+            Messaging.sendEmail(emails);
+        } catch (Exception e) {
+            System.debug('Error sending emails: ' + e.getMessage());
+        }
+    }
+
+    public static void sendEmailMsg(List<WorkOrder__c> newWorkOrders, List<WorkOrder__c> oldWorkOrders) {
+        List<String> emailAddresses = new List<String>();
+        List<String> emailSubjects = new List<String>();
+        List<String> emailBodies = new List<String>();
+
+        for (Integer i = 0; i < newWorkOrders.size(); i++) {
+            WorkOrder__c newWorkOrder = newWorkOrders[i];
+            WorkOrder__c oldWorkOrder = oldWorkOrders[i];
+
+            if (newWorkOrder.Status__c == 'Resolved' && 
+                oldWorkOrder.Status__c != 'Resolved' && 
+                newWorkOrder.Email__c != null) { // Corrected field names
+                emailAddresses.add(newWorkOrder.Email__c);
+                emailSubjects.add('Status Updated');
+                emailBodies.add(
+                    'Dear Customer, <br><br>Your work order (ID: ' + newWorkOrder.Id + 
+                    ') has been marked as resolved. Thank you for your patience.<br><br>Best regards,<br>Your Company'
+                );
+            }
+        }
+
+        // Call the future method to send the emails asynchronously
+        if (!emailAddresses.isEmpty()) {
+            sendEmailInFuture(emailAddresses, emailSubjects, emailBodies);
+        }
+    }
+}

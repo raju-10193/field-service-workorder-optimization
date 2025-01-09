@@ -1,0 +1,78 @@
+public class CreateOrUpdateTechnicianQueueable implements Queueable {
+    private Set<Id> userIds;
+
+    // Constructor to pass user IDs
+    public CreateOrUpdateTechnicianQueueable(Set<Id> userIds) {
+        this.userIds = userIds;
+    }
+
+    public void execute(QueueableContext context) {
+        if (userIds == null || userIds.isEmpty()) {
+            System.debug('No User IDs provided for creation or update. Exiting Queueable execution.');
+            return;
+        }
+
+        // Query the User records with the given IDs
+        List<User> users = [SELECT Id, Name, Phone, Email, City, UserName, UserRole.Name 
+                            FROM User 
+                            WHERE Id IN :userIds];
+
+        // Collect User Names (acting as Technician ID) to query Technician records
+        Set<String> technicianIdsSet = new Set<String>();
+        for (User user : users) {
+            technicianIdsSet.add(user.UserName); // Assuming UserName is the Technician ID
+        }
+
+        // Query existing Technician__c records based on Technician ID (UserName)
+        Map<String, Technician__c> existingTechniciansMap = new Map<String, Technician__c>(
+            [SELECT Id, Name, Phone__c, Email__c, Location__c, Availibility__c, Skills__c 
+             FROM Technician__c
+             WHERE Name IN :technicianIdsSet] // Match using Technician ID (UserName)
+        );
+
+        // List to hold Technician records for insertion or update
+        List<Technician__c> techniciansToUpsert = new List<Technician__c>();
+
+        for (User user : users) {
+            Technician__c technician = existingTechniciansMap.get(user.UserName); // Match using Technician ID
+
+            if (technician == null) {
+                // If no Technician exists, create a new one
+                technician = new Technician__c();
+                technician.Name = user.UserName; // Link Technician with UserName (unique identifier)
+            }
+
+            // Populate or update Technician fields
+            technician.Name__c = user.Name; // Technician Name
+
+            // Handle Phone__c as Decimal
+            if (user.Phone != null) {
+                try {
+                    technician.Phone__c = Decimal.valueOf(user.Phone); // Convert String to Decimal
+                } catch (Exception e) {
+                    System.debug('Error converting Phone to Decimal for user: ' + user.Id);
+                    technician.Phone__c = null; // Handle gracefully
+                }
+            }
+
+            technician.Email__c = user.Email; // Technician Email
+            technician.Location__c = user.City != null ? user.City : 'Default City'; // Use city from User or default
+            technician.Availibility__c = 'Available'; // Default picklist value
+            technician.Skills__c = user.UserRole != null ? user.UserRole.Name : null; // Map the user role to skills
+
+            techniciansToUpsert.add(technician);
+        }
+
+        // Perform the DML operation to update existing records or insert new ones
+        try {
+            if (!techniciansToUpsert.isEmpty()) {
+                // Use upsert, where Name (Technician ID) is treated as the external ID field for upsert
+                upsert techniciansToUpsert; // This will update existing records or create new ones if not found
+                System.debug('Technician records successfully inserted/updated.');
+            }
+        } catch (DmlException e) {
+            System.debug('Error during Technician upsert: ' + e.getMessage());
+            throw e;
+        }
+    }
+}

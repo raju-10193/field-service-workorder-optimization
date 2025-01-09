@@ -1,0 +1,9 @@
+trigger AssignmentTrigger on Assignment__c (after insert) {
+    if (Trigger.IsAfter && Trigger.IsInsert) {
+        // Call the method to send email
+        AssigningEmail.sendEmailmsg(Trigger.New);
+
+        // Call the method to update WorkOrder status and Technician availability
+        AssignmentHandler.updateWorkOrderAndTechnician(Trigger.New);
+    }
+}

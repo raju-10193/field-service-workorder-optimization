@@ -1,0 +1,59 @@
+public class WorkOrderClass {
+    public static void workOrder(List<WorkOrder__c> newListWorkOrder) {
+        // Map to store technician matching data
+        Map<Id, List<String>> workOrderCriteriaMap = new Map<Id, List<String>>();
+        List<WorkOrder__c> validWorkOrders = new List<WorkOrder__c>();
+        List<Assignment__c> lstAssignment = new List<Assignment__c>();
+
+        // Collect valid work orders and their matching criteria
+        for (WorkOrder__c workOrder : newListWorkOrder) {
+            if (workOrder.Service_Type__c != null && workOrder.Location__c != null) {
+                List<String> criteria = new List<String>();
+                criteria.add(workOrder.Service_Type__c);
+                criteria.add(workOrder.Location__c);
+
+                workOrderCriteriaMap.put(workOrder.Id, criteria);
+                validWorkOrders.add(workOrder);
+            }
+        }
+
+        // Query all technicians
+        Map<Id, Technician__c> allTechnicians = new Map<Id, Technician__c>(
+            [SELECT Id, Name, Phone__c, Location__c, Skills__c, Availibility__c, Email__c 
+             FROM Technician__c WHERE Availibility__c = 'Available']
+        );
+
+        // Map work orders to technician IDs
+        Map<Id, Id> workOrderToTechMap = new Map<Id, Id>();
+        for (Id workOrderId : workOrderCriteriaMap.keySet()) {
+            List<String> criteria = workOrderCriteriaMap.get(workOrderId);
+
+            for (Technician__c technician : allTechnicians.values()) {
+                if (technician.Skills__c.contains(criteria[0]) &&
+                    technician.Location__c == criteria[1]) {
+                    workOrderToTechMap.put(workOrderId, technician.Id);
+                    allTechnicians.remove(technician.Id); // Remove to avoid assigning the same tech multiple times
+                    break;
+                }
+            }
+        }
+
+        // Create assignments
+        for (WorkOrder__c workOrder : validWorkOrders) {
+            Id techId = workOrderToTechMap.get(workOrder.Id);
+            if (techId != null) {
+                Assignment__c assignment = new Assignment__c();
+                assignment.WorkOrder_ID__c = workOrder.Id;  // Reference to WorkOrder_c
+                assignment.Technician_ID__c = techId;      // Reference to Technician_c
+                lstAssignment.add(assignment);
+            }
+        }
+
+        // Insert assignments if any are valid
+        if (!lstAssignment.isEmpty()) {
+            insert lstAssignment;
+        } else {
+            System.debug('No valid assignments to insert.');
+        }
+    }
+}
